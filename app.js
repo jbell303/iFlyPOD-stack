@@ -1,5 +1,7 @@
 var rp = require('request-promise');
 var cheerio = require('cheerio');
+var XMLParser = require('./xml_parser.js');
+var fs = require('fs');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
@@ -42,6 +44,7 @@ function getOptions() {
     }
 }
 
+console.log('fetching schedule...');
 rp (getOptions())
   .then(($) => {
     eventTarget = 'ctrlCalendar';
@@ -60,8 +63,23 @@ rp (getOptions())
       // retrieve the schedule
       rp(getOptions())
         .then(($) => {
-          console.log($('#dgCoversheet').text())
-          console.log($('#dgEvents').text());
+          // [DEBUG]
+          // console.log($('#dgCoversheet').text());
+          // console.log($('#dgEvents').text());
+
+          // parse html to XML
+          var xml_parser = new XMLParser($, date, '1JAN77', 'vt-7');
+
+          // write to file
+          console.log('schedule fetched, writing to file');
+          fs.writeFile('out.xml', xml_parser.parse(), function(err) {
+            if (err) {
+              console.error(err);
+            }
+            console.log('file written successfully!')
+          });
+
+
         })
         .catch((err) => {
           console.log(err);
