@@ -6,110 +6,112 @@ var AWS = require('aws-sdk');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-var md = 'GET';
 var squadron = 'vt-7';
 const uri = 'https://www.cnatra.navy.mil/scheds/schedule_data.aspx';
-var name = '';
 const date = '18Apr2018';
 
 // .NET postback parameters
-var eventTarget = '';
-var eventArgument = '';
-var viewstate = '';
-var viewstateGenerator = '';
-var validation = '';
-var viewSched = '';
+var options =  {
+  method: 'GET',
+  uri: uri,
+  resolveWithFullResponse: true,
+  qs: {
+    sq: squadron,
+  },
+  formData: {
+    __EVENTTARGET: '',
+    __EVENTARGUMENT: '',
+    __VIEWSTATE : '',
+    __VIEWSTATEGENERATOR: '',
+    __EVENTVALIDATION: '',
+    txtNameSearch: '',
+  },
+  headers: {
+    'User-Agent': 'Request-Promise'
+  },
+  transform: function (body) {
+    return cheerio.load(body);
+  }
+}
+
+// s3 paramaters
+var s3 = new AWS.S3();
+var path = squadron + "/" + date + ".xml";
+var params = {
+  Bucket : "iflypod-xml-repository",
+  Key : path
+}
 
 exports.handler = (event, context, callback) => {
-  console.log('fetching schedule...');
-  rp (getOptions())
-    .then(($) => {
-      eventTarget = 'ctrlCalendar';
-      eventArgument = skedDateFormat(date);
-      saveViewstate($);
-      md = 'POST';
-
-      // send another postback
-      rp(getOptions())
+  // check if object exists
+  s3.headObject(params, function (err, metadata) {
+    if (err && err.code === 'NotFound') {
+      // retrieve schedule and write to XML
+      console.log('fetching schedule...');
+      rp (options)
         .then(($) => {
-          eventTarget = '';
-          eventArgument = '';
+          // console.log("First call: " + $.statusCode);
+          options.formData.__EVENTTARGET = 'ctrlCalendar';
+          options.formData.__EVENTARGUMENT = skedDateFormat(date);
           saveViewstate($);
-          viewSched = 'View Schedule'
+          options.method = 'POST';
 
-        // retrieve the schedule
-        rp(getOptions())
-          .then(($) => {
-            // [DEBUG]
-            // console.log($('#dgCoversheet').text());
-            // console.log($('#dgEvents').text());
-            // callback(null, "success");
+          // send another postback
+          rp(options)
+            .then(($) => {
+              // console.log("Second call: " + $.statusCode);
+              options.formData.__EVENTTARGET = '';
+              options.formData.__EVENTARGUMENT = '';
+              saveViewstate($);
 
-            //parse html to XML
-            var xml_parser = new XMLParser($, date, '1JAN77', 'vt-7');
+              // retrieve the schedule
+              options.formData.btnViewSched = "View Schedule";
+              rp(options)
+                .then(($) => {
+                  // [DEBUG]
+                  // console.log($('#dgCoversheet').text());
+                  // console.log($('#dgEvents').text());
+                  // callback(null, "success");
+
+                  // console.log("Third call: " + $.statusCode);
+                  //parse html to XML
+                  var xml_parser = new XMLParser($, date, squadron);
+                  params.Body = xml_parser.parse();
             
-            // write to S3 bucket
-            var path = squadron + "/" + date + ".xml";
-            console.log('schedule fetched, writing to s3: ' + path);
-            putObjectToS3("iflypod-xml-repository", path, xml_parser.parse());
-          })
-          .catch((err) => {
-            console.log(err);
-          })
+                  // write to S3 bucket
+                  console.log('schedule fetched, writing to s3: ' + path);
+                  s3.putObject(params, function(err, data) {
+                    if (err) console.log(err);
+                    else {
+                      console.log(data);
+                      callback(null, path + " written successfully!")
+                    }
+                  });
+                })
+                .catch((err) => {
+                  console.log(err);
+                })
+            })
+            .catch((err) => {
+              console.log(err);
+            })
         })
         .catch((err) => {
           console.log(err);
         })
-    })
-    .catch((err) => {
-      console.log(err);
-    })
-}
-
-function getOptions() {
-  return {
-      method: md,
-      uri: uri,
-      qs: {
-        sq: squadron,
-      },
-      form: {
-        __EVENTTARGET: eventTarget,
-        __EVENTARGUMENT: eventArgument,
-        __VIEWSTATE : viewstate,
-        __VIEWSTATEGENERATOR: viewstateGenerator,
-        __EVENTVALIDATION: validation,
-        btnViewSched: '',
-        txtNameSearch: name,
-      },
-      headers: {
-        'User-Agent': 'Request-Promise'
-      },
-      transform: function (body) {
-        return cheerio.load(body);
-      }
+    } else {
+      // object already exists
+      callback(null, "object: " + path + " already exists!");
     }
+  })
 }
 
   function saveViewstate($) {
-    viewstate = $('#__VIEWSTATE').val();
-    viewstateGenerator = $('#__VIEWSTATEGENERATOR').val();
-    validation = $('#__EVENTVALIDATION').val();
+    options.formData.__VIEWSTATE = $('#__VIEWSTATE').val();
+    options.formData.__VIEWSTATEGENERATOR = $('#__VIEWSTATEGENERATOR').val();
+    options.formData.__EVENTVALIDATION = $('#__EVENTVALIDATION').val();
   }
 
   function skedDateFormat(date) {
     return Math.round(Date.parse(date) / 86400000 - 10957);
-  }
-
-  function putObjectToS3(bucket, key, data) {
-    var s3 = new AWS.S3();
-    var params = {
-      Bucket: bucket,
-      Key : key,
-      Body : data
-    }
-    s3.putObject(params, function(err, data) {
-      if (err) console.log(err);
-      else console.log(data);
-    });
   }

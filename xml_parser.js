@@ -3,10 +3,9 @@ var fs = require('fs');
 var cheerio = require('cheerio');
 
 class XMLParser {
-  constructor(html, date, dateTag, squadron) {
+  constructor(html, date, squadron) {
     this.html = html;
     this.date = date;
-    this.dateTag = dateTag;
     this.squadron = squadron;
   }
 
