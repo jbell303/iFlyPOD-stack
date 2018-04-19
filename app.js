@@ -9,7 +9,7 @@ var md = 'GET';
 var squadron = 'vt-7';
 const uri = 'https://www.cnatra.navy.mil/scheds/schedule_data.aspx';
 var name = '';
-const date = '6680';
+const date = '18Apr2018';
 
 // .NET postback parameters
 var eventTarget = '';
@@ -48,7 +48,7 @@ console.log('fetching schedule...');
 rp (getOptions())
   .then(($) => {
     eventTarget = 'ctrlCalendar';
-    eventArgument = date;
+    eventArgument = skedDateFormat(date);
     saveViewstate($);
     md = 'POST';
 
@@ -71,15 +71,14 @@ rp (getOptions())
           var xml_parser = new XMLParser($, date, '1JAN77', 'vt-7');
 
           // write to file
-          console.log('schedule fetched, writing to file');
-          fs.writeFile('out.xml', xml_parser.parse(), function(err) {
+          var path = squadron + "_" + date + ".xml";
+          console.log('schedule fetched, writing to file: ' + path);
+          fs.writeFile(path, xml_parser.parse(), function(err) {
             if (err) {
               console.error(err);
             }
             console.log('file written successfully!')
           });
-
-
         })
         .catch((err) => {
           console.log(err);
@@ -97,4 +96,8 @@ rp (getOptions())
     viewstate = $('#__VIEWSTATE').val();
     viewstateGenerator = $('#__VIEWSTATEGENERATOR').val();
     validation = $('#__EVENTVALIDATION').val();
+  }
+
+  function skedDateFormat(date) {
+    return Math.round(Date.parse(date) / 86400000 - 10957);
   }
