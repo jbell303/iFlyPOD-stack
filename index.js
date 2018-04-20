@@ -9,7 +9,7 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 var squadron = 'vt-7';
 const uri = 'https://www.cnatra.navy.mil/scheds/schedule_data.aspx';
-const date = moment().startOf('day').format('DDMMMYYYY');
+const date = moment().startOf('day').add(1, 'days').format('DDMMMYYYY');
 
 // .NET postback parameters
 var options =  {
@@ -82,27 +82,26 @@ exports.handler = (event, context, callback) => {
                   // write to S3 bucket
                   console.log('schedule fetched, writing to s3: ' + path);
                   s3.putObject(params, function(err, data) {
-                    if (err) console.log(err);
+                    if (err) callback(err);
                     else {
-                      console.log(data);
-                      callback(null, path + " written successfully!")
+                      callback(null, path + " written successfully! " + data);
                     }
                   });
                 })
                 .catch((err) => {
-                  console.log(err);
+                  callback(err);
                 })
             })
             .catch((err) => {
-              console.log(err);
+              callback(err);
             })
         })
         .catch((err) => {
-          console.log(err);
+          callback(err);
         })
     } else {
       // object already exists
-      callback(null, "object: " + path + " already exists!");
+      callback(null, "object: " + path + " already exists! " + moment().format('MMMM Do YYYY, h:mm:ss a'));
     }
   })
 }
