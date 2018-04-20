@@ -3,12 +3,13 @@ var cheerio = require('cheerio');
 var XMLParser = require('./xml_parser.js');
 var fs = require('fs');
 var AWS = require('aws-sdk');
+var moment = require('moment');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 var squadron = 'vt-7';
 const uri = 'https://www.cnatra.navy.mil/scheds/schedule_data.aspx';
-const date = '18Apr2018';
+const date = moment().startOf('day').format('DDMMMYYYY');
 
 // .NET postback parameters
 var options =  {
@@ -77,7 +78,7 @@ exports.handler = (event, context, callback) => {
                   //parse html to XML
                   var xml_parser = new XMLParser($, date, squadron);
                   params.Body = xml_parser.parse();
-            
+
                   // write to S3 bucket
                   console.log('schedule fetched, writing to s3: ' + path);
                   s3.putObject(params, function(err, data) {
